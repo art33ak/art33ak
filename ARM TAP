@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="hy">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ARM Tap Game</title>
+    <!-- Telegram Mini App SDK & TON Connect SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #121318;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            overflow: hidden;
+        }
+        /* Header & Wallet Section */
+        header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+        .app-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #f3ba2f;
+        }
+        #ton-connect {
+            z-index: 10;
+        }
+        
+        /* Stats Display */
+        .stats-container {
+            text-align: center;
+            margin-top: 10px;
+        }
+        .balance-title {
+            font-size: 14px;
+            color: #8a8d93;
+            margin-bottom: 5px;
+        }
+        .balance {
+            font-size: 40px;
+            font-weight: 800;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .balance span {
+            color: #f3ba2f;
+        }
+
+        /* Tap Area */
+        .tap-area {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .coin-btn {
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #f3ba2f 0%, #d49509 100%);
+            border: 8px solid #332709;
+            box-shadow: 0 0 30px rgba(243, 186, 47, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.08s ease;
+        }
+        .coin-btn:active {
+            transform: scale(0.95);
+        }
+        .coin-text {
+            font-size: 32px;
+            font-weight: 900;
+            color: #121318;
+            letter-spacing: 2px;
+        }
+
+        /* Floating Numbers Animation */
+        .float-number {
+            position: absolute;
+            font-size: 28px;
+            font-weight: bold;
+            color: #f3ba2f;
+            pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-80px); }
+        }
+
+        /* Energy & Progress Bar */
+        .energy-container {
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 15px;
+        }
+        .energy-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background-color: #242731;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #f3ba2f, #ff8c00);
+            transition: width 0.2s ease;
+        }
+
+        /* Navigation Bar */
+        nav {
+            width: 100%;
+            background-color: #1d1f27;
+            border-radius: 15px;
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #8a8d93;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .nav-item.active {
+            color: #f3ba2f;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header / Wallet -->
+    <header>
+        <div class="app-title">ARM TAP</div>
+        <div id="ton-connect"></div>
+    </header>
+
+    <!-- Main Balance Area -->
+    <div class="stats-container">
+        <div class="balance-title">ARM Token Balance</div>
+        <div class="balance"><span id="score">0</span> ARM</div>
+    </div>
+
+    <!-- Tapping Circle -->
+    <div class="tap-area">
+        <div class="coin-btn" id="coin">
+            <div class="coin-text">ARM</div>
+        </div>
+    </div>
+
+    <!-- Energy Section -->
+    <div class="energy-container">
+        <div class="energy-text">
+            <span>⚡ Energy</span>
+            <span><span id="energy">1000</span> / <span id="max-energy">1000</span></span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="energy-bar"></div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav>
+        <div class="nav-item active">
+            <span>⛏️</span>
+            <span>Tap</span>
+        </div>
+        <div class="nav-item" onclick="alert('Ռեֆերալային հղումը պատճենված է:')">
+            <span>👥</span>
+            <span>Ref</span>
+        </div>
+        <div class="nav-item" onclick="alert('Առաջադրանքները շուտով:')">
+            <span>📋</span>
+            <span>Tasks</span>
+        </div>
+    </nav>
+
+    <script>
+        // Game Logic Variables
+        let score = 0;
+        let energy = 1000;
+        const maxEnergy = 1000;
+        const tapPower = 1;
+
+        const scoreEl = document.getElementById('score');
+        const energyEl = document.getElementById('energy');
+        const energyBar = document.getElementById('energy-bar');
+        const coinBtn = document.getElementById('coin');
+
+        // Tap Click Event
+        coinBtn.addEventListener('click', (e) => {
+            if (energy >= tapPower) {
+                score += tapPower;
+                energy -= tapPower;
+
+                updateUI();
+                createFloatingNumber(e.clientX, e.clientY);
+
+                // Telegram Vibrate Feedback
+                if (window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+                    window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+                }
+            }
+        });
+
+        // Create +1 animation on screen
+        function createFloatingNumber(x, y) {
+            const num = document.createElement('div');
+            num.className = 'float-number';
+            num.innerText = `+${tapPower}`;
+            num.style.left = `${x - 15}px`;
+            num.style.top = `${y - 30}px`;
+            
+            document.body.appendChild(num);
+
+            setTimeout(() => {
+                num.remove();
+            }, 800);
+        }
+
+        // Update Balance and Energy Bar
+        function updateUI() {
+            scoreEl.innerText = score;
+            energyEl.innerText = energy;
+            const percentage = (energy / maxEnergy) * 100;
+            energyBar.style.width = `${percentage}%`;
+        }
+
+        // Energy Auto-Recovery (1 energy per second)
+        setInterval(() => {
+            if (energy < maxEnergy) {
+                energy += 1;
+                updateUI();
+            }
+        }, 1000);
+
+        // TON Connect Integration Setup
+        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: 'https://raw.githubusercontent.com/ton-community/tutorials/main/03-client/public/tonconnect-manifest.json',
+            buttonRootId: 'ton-connect'
+        });
+
+        // Initialize Telegram WebApp SDK
+        if (window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+        }
+    </script>
+</body>
+</html>
